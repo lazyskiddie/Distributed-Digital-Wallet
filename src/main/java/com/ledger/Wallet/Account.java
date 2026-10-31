@@ -33,4 +33,15 @@ public class Account {
 
     @UpdateTimestamp
     private LocalDateTime updatedAt;
+
+    public void debit(BigDecimal amount) {
+        if (this.balance.compareTo(amount) < 0) {
+            throw new IllegalArgumentException("Insufficient funds");
+        }
+        this.balance = this.balance.subtract(amount);
+    }
+
+    public void credit(BigDecimal amount) {
+        this.balance = this.balance.add(amount);
+    }
 }
