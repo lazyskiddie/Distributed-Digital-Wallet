@@ -67,4 +67,19 @@ public class TransferService {
             throw e; // Rethrow to trigger the database rollback for the account balances
         }
     }
+    private Account lockAccount(String accountNumber) {
+        return accountRepository.findByAccountNumberForUpdate(accountNumber)
+                .orElseThrow(() -> new IllegalArgumentException("Account not found: " + accountNumber));
+    }
+
+    private void saveTransactionLog(TransferRequest request, String ref, String status) {
+        TransactionLog logEntry = TransactionLog.builder()
+                .transactionReference(ref)
+                .sourceAccount(request.sourceAccount())
+                .destinationAccount(request.destinationAccount())
+                .amount(request.amount())
+                .status(status)
+                .build();
+        transactionLogRepository.save(logEntry);
+    }
 }
