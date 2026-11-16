@@ -1,137 +1,140 @@
 package com.ledger.Wallet;
 
-import com.example.wallet.domain.Account;
-import com.example.wallet.dto.TransferRequest;
-import com.example.wallet.repository.AccountRepository;
+import com.ledger.Wallet.dto.TransferRequest;
 import lombok.extern.slf4j.Slf4j;
-import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.test.context.DynamicPropertyRegistry;
-import org.springframework.test.context.DynamicPropertySource;
-import org.testcontainers.containers.PostgreSQLContainer;
-import org.testcontainers.junit.jupiter.Container;
-import org.testcontainers.junit.jupiter.Testcontainers;
 
 import java.math.BigDecimal;
+import java.util.List;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.*;
 
 @Slf4j
 @SpringBootTest
-@Testcontainers // Spins up a real PostgreSQL database in Docker just for this test!
 class TransferServiceConcurrencyTest {
 
-    // 1. The Testcontainers Database Setup
-    @Container
-    static PostgreSQLContainer<?> postgres = new PostgreSQLContainer<>("postgres:15-alpine");
+    @Autowired private TransferService transferService;
+    @Autowired private AccountRepository accountRepository;
+    @Autowired private TransactionLogRepository logRepository;
 
-    @DynamicPropertySource
-    static void configureProperties(DynamicPropertyRegistry registry) {
-        registry.add("spring.datasource.url", postgres::getJdbcUrl);
-        registry.add("spring.datasource.username", postgres::getUsername);
-        registry.add("spring.datasource.password", postgres::getPassword);
-        registry.add("spring.jpa.hibernate.ddl-auto", () -> "create-drop");
-    }
-
-    @Autowired
-    private TransferService transferService;
-
-    @Autowired
-    private AccountRepository accountRepository;
-
-    private static final String ACCOUNT_A = "ACC-001";
-    private static final String ACCOUNT_B = "ACC-002";
+    private static final String A = "ACC-001";
+    private static final String B = "ACC-002";
+    private static final String C = "ACC-003";
 
     @BeforeEach
     void setUp() {
-        // Seed the database with two accounts, each having $1000
-        accountRepository.save(Account.builder()
-                .accountNumber(ACCOUNT_A)
-                .balance(new BigDecimal("1000.0000"))
-                .build());
-
-        accountRepository.save(Account.builder()
-                .accountNumber(ACCOUNT_B)
-                .balance(new BigDecimal("1000.0000"))
-                .build());
-    }
-
-    @AfterEach
-    void tearDown() {
+        logRepository.deleteAll();
         accountRepository.deleteAll();
     }
 
-    @Test
-    void testConcurrentTransfers_ShouldPreventRaceConditionsAndDeadlocks() throws InterruptedException {
-        int numberOfThreads = 100;
-        ExecutorService executorService = Executors.newFixedThreadPool(numberOfThreads);
+    private void seed(String number, String balance) {
+        accountRepository.save(Account.builder().accountNumber(number).balance(new BigDecimal(balance)).build());
+    }
 
-        // CountDownLatch ensures all threads start executing at the EXACT same time
-        CountDownLatch startLatch = new CountDownLatch(1);
-        CountDownLatch endLatch = new CountDownLatch(numberOfThreads);
+    private BigDecimal balanceOf(String number) {
+        return accountRepository.findByAccountNumber(number).orElseThrow().getBalance();
+    }
 
-        AtomicInteger successfulTransfers = new AtomicInteger(0);
-        AtomicInteger failedTransfers = new AtomicInteger(0);
+    private static void assertMoney(String expected, BigDecimal actual, String message) {
+        assertEquals(0, new BigDecimal(expected).compareTo(actual), message + " (was " + actual + ")");
+    }
 
-        log.info("Starting concurrency test with {} threads...", numberOfThreads);
-
-        for (int i = 0; i < numberOfThreads; i++) {
-            final int threadIndex = i;
-            executorService.submit(() -> {
-                try {
-                    // Wait until the starting gun is fired
-                    startLatch.await();
-
-                    // Even threads send money A -> B, Odd threads send B -> A
-                    // This intentionally attempts to cause a Deadlock!
-                    if (threadIndex % 2 == 0) {
-                        transferService.transferFunds(new TransferRequest(ACCOUNT_A, ACCOUNT_B, new BigDecimal("10.00")));
-                    } else {
-                        transferService.transferFunds(new TransferRequest(ACCOUNT_B, ACCOUNT_A, new BigDecimal("5.00")));
+    /** One task per request; all fire at the same instant. Returns {successes, failures}. */
+    private int[] fireAll(List<TransferRequest> requests) throws InterruptedException {
+        int n = requests.size();
+        ExecutorService pool = Executors.newFixedThreadPool(n);
+        CountDownLatch start = new CountDownLatch(1);
+        CountDownLatch done = new CountDownLatch(n);
+        AtomicInteger ok = new AtomicInteger();
+        AtomicInteger failed = new AtomicInteger();
+        try {
+            for (TransferRequest req : requests) {
+                pool.submit(() -> {
+                    try {
+                        start.await();
+                        transferService.transferFunds(req);
+                        ok.incrementAndGet();
+                    } catch (Exception e) {
+                        log.warn("Transfer failed: {}", e.getMessage());
+                        failed.incrementAndGet();
+                    } finally {
+                        done.countDown();
                     }
-                    successfulTransfers.incrementAndGet();
-                } catch (Exception e) {
-                    log.error("Transfer failed: {}", e.getMessage());
-                    failedTransfers.incrementAndGet();
-                } finally {
-                    endLatch.countDown();
-                }
-            });
+                });
+            }
+            start.countDown();
+            assertTrue(done.await(60, TimeUnit.SECONDS), "Timed out: threads are likely deadlocked");
+        } finally {
+            pool.shutdownNow();
         }
+        return new int[]{ok.get(), failed.get()};
+    }
 
-        // 🎯 FIRE THE STARTING GUN: Let all 100 threads hit the database simultaneously
-        startLatch.countDown();
+    private static TransferRequest req(String from, String to, String amount) {
+        return new TransferRequest(from, to, new BigDecimal(amount));
+    }
 
-        // Wait for all threads to finish
-        endLatch.await();
-        executorService.shutdown();
+    @Test
+    void opposingTransfersDoNotDeadlockOrLoseUpdates() throws InterruptedException {
+        seed(A, "1000.0000");
+        seed(B, "1000.0000");
 
-        log.info("Test completed. Success: {}, Failed: {}", successfulTransfers.get(), failedTransfers.get());
+        List<TransferRequest> reqs = new java.util.ArrayList<>();
+        for (int i = 0; i < 100; i++) {
+            reqs.add(i % 2 == 0 ? req(A, B, "10.00") : req(B, A, "5.00"));
+        }
+        int[] r = fireAll(reqs);
 
-        // ==========================================
-        // THE ASSERTIONS (The Moment of Truth)
-        // ==========================================
-        Account finalAccountA = accountRepository.findByAccountNumber(ACCOUNT_A).orElseThrow();
-        Account finalAccountB = accountRepository.findByAccountNumber(ACCOUNT_B).orElseThrow();
+        assertEquals(100, r[0], "Some threads failed, likely due to a deadlock");
+        assertMoney("750", balanceOf(A), "Account A balance is wrong: lost update");
+        assertMoney("1250", balanceOf(B), "Account B balance is wrong: lost update");
+        assertEquals(100, logRepository.count(), "Every transfer must have exactly one audit row");
+    }
 
-        // Account A sent $10 fifty times (-$500), and received $5 fifty times (+$250). Net change: -$250.
-        // Final Balance should be exactly $750.
-        assertEquals(0, new BigDecimal("750.0000").compareTo(finalAccountA.getBalance()),
-                "Account A balance is incorrect. A race condition occurred!");
+    @Test
+    void circularTransfersAcrossThreeAccountsDoNotDeadlock() throws InterruptedException {
+        seed(A, "1000"); seed(B, "1000"); seed(C, "1000");
 
-        // Account B sent $5 fifty times (-$250), and received $10 fifty times (+$500). Net change: +$250.
-        // Final Balance should be exactly $1250.
-        assertEquals(0, new BigDecimal("1250.0000").compareTo(finalAccountB.getBalance()),
-                "Account B balance is incorrect. A race condition occurred!");
+        List<TransferRequest> reqs = new java.util.ArrayList<>();
+        for (int i = 0; i < 30; i++) {
+            reqs.add(req(A, B, "10"));
+            reqs.add(req(B, C, "10"));
+            reqs.add(req(C, A, "10"));
+        }
+        int[] r = fireAll(reqs);
 
-        // Ensure no deadlocks crashed the threads
-        assertEquals(100, successfulTransfers.get(), "Some threads failed, likely due to a deadlock!");
+        assertEquals(90, r[0]);
+        // Each account sends 300 and receives 300.
+        assertMoney("1000", balanceOf(A), "A");
+        assertMoney("1000", balanceOf(B), "B");
+        assertMoney("1000", balanceOf(C), "C");
+    }
+
+    @Test
+    void contentionOnLimitedFundsNeverOverdrawsAndOnlyAffordableTransfersSucceed() throws InterruptedException {
+        seed(A, "100.00"); // affords exactly 10 transfers of 10
+        seed(B, "0.00");
+
+        List<TransferRequest> reqs = new java.util.ArrayList<>();
+        for (int i = 0; i < 40; i++) reqs.add(req(A, B, "10.00"));
+        int[] r = fireAll(reqs);
+
+        assertEquals(10, r[0], "Exactly 10 transfers are affordable");
+        assertEquals(30, r[1]);
+        assertMoney("0", balanceOf(A), "A must be drained exactly to zero, never negative");
+        assertMoney("100", balanceOf(B), "B must receive exactly what A lost");
+
+        long success = logRepository.findAll().stream().filter(l -> "SUCCESS".equals(l.getStatus())).count();
+        long failed = logRepository.findAll().stream().filter(l -> "FAILED".equals(l.getStatus())).count();
+        assertEquals(10, success);
+        assertEquals(30, failed, "Failed attempts must be audited even though they rolled back");
     }
 }
