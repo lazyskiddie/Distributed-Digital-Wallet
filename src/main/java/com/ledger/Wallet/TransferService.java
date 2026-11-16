@@ -1,8 +1,8 @@
 package com.ledger.Wallet;
 
 import com.ledger.Wallet.dto.TransferRequest;
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.support.TransactionTemplate;
@@ -13,34 +13,43 @@ import java.util.UUID;
 
 @Slf4j
 @Service
-@RequiredArgsConstructor
 public class TransferService {
 
     private final AccountRepository accountRepository;
     private final TransactionLogService transactionLogService;
+    private final AccountLockManager accountLockManager;
     private final TransactionTemplate transactionTemplate;
 
+    @Autowired
     public TransferService(AccountRepository accountRepository,
                            TransactionLogService transactionLogService,
+                           AccountLockManager accountLockManager,
                            PlatformTransactionManager transactionManager) {
         this.accountRepository = accountRepository;
         this.transactionLogService = transactionLogService;
+        this.accountLockManager = accountLockManager;
         this.transactionTemplate = new TransactionTemplate(transactionManager);
     }
 
-     // Not itself transactional on purpose: the transfer runs in one transaction; if it rolls back,
-     // the FAILED audit row is written afterwards in a fresh transaction. This never needs two
-     // connections at once, so it cannot starve the connection pool under load.
+    /**
+     * Not itself transactional on purpose: the transfer runs in one transaction; if it rolls back,
+     * the FAILED audit row is written afterwards in a fresh transaction. This never needs two
+     * connections at once, so it cannot starve the connection pool under load.
+     */
     public String transferFunds(TransferRequest request) {
         String transactionRef = UUID.randomUUID().toString();
-        try {
-            transactionTemplate.executeWithoutResult(status -> doTransfer(request, transactionRef));
-            log.info("Transfer successful [Ref: {}]", transactionRef);
-            return transactionRef;
-        } catch (RuntimeException e) {
-            log.error("Transfer failed [Ref: {}]: {}", transactionRef, e.getMessage());
-            transactionLogService.record(request, transactionRef, "FAILED");
-            throw e;
+        // Queue here, BEFORE taking a database connection (see AccountLockManager).
+        try (AccountLockManager.Held ignored =
+                     accountLockManager.acquire(request.sourceAccount(), request.destinationAccount())) {
+            try {
+                transactionTemplate.executeWithoutResult(status -> doTransfer(request, transactionRef));
+                log.info("Transfer successful [Ref: {}]", transactionRef);
+                return transactionRef;
+            } catch (RuntimeException e) {
+                log.error("Transfer failed [Ref: {}]: {}", transactionRef, e.getMessage());
+                transactionLogService.record(request, transactionRef, "FAILED");
+                throw e;
+            }
         }
     }
 
