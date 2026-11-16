@@ -4,71 +4,87 @@ import com.ledger.Wallet.dto.TransferRequest;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.support.TransactionTemplate;
 
+import java.math.BigDecimal;
+import java.time.LocalDateTime;
 import java.util.UUID;
 
 @Slf4j
 @Service
 @RequiredArgsConstructor
 public class TransferService {
+
     private final AccountRepository accountRepository;
     private final TransactionLogService transactionLogService;
+    private final TransactionTemplate transactionTemplate;
 
-    @Transactional
+    public TransferService(AccountRepository accountRepository,
+                           TransactionLogService transactionLogService,
+                           PlatformTransactionManager transactionManager) {
+        this.accountRepository = accountRepository;
+        this.transactionLogService = transactionLogService;
+        this.transactionTemplate = new TransactionTemplate(transactionManager);
+    }
+
+     // Not itself transactional on purpose: the transfer runs in one transaction; if it rolls back,
+     // the FAILED audit row is written afterwards in a fresh transaction. This never needs two
+     // connections at once, so it cannot starve the connection pool under load.
     public String transferFunds(TransferRequest request) {
+        String transactionRef = UUID.randomUUID().toString();
+        try {
+            transactionTemplate.executeWithoutResult(status -> doTransfer(request, transactionRef));
+            log.info("Transfer successful [Ref: {}]", transactionRef);
+            return transactionRef;
+        } catch (RuntimeException e) {
+            log.error("Transfer failed [Ref: {}]: {}", transactionRef, e.getMessage());
+            transactionLogService.record(request, transactionRef, "FAILED");
+            throw e;
+        }
+    }
+
+    private void doTransfer(TransferRequest request, String transactionRef) {
         String sourceId = request.sourceAccount();
         String destId = request.destinationAccount();
-        String transactionRef = UUID.randomUUID().toString();
+        BigDecimal amount = request.amount();
 
         if (sourceId.equals(destId)) {
             throw new IllegalArgumentException("Source and destination accounts cannot be the same.");
         }
 
-        log.info("Initiating transfer of ${} from {} to {} [Ref: {}]",
-                request.amount(), sourceId, destId, transactionRef);
+        log.info("Initiating transfer of {} from {} to {} [Ref: {}]",
+                amount, sourceId, destId, transactionRef);
 
-        // DEADLOCK PREVENTION: Consistent Lock Ordering
-        // Always lock the account with the "smaller" account number first,
-        // regardless of who is the sender or receiver.
-        Account firstLock, secondLock;
+        LocalDateTime now = LocalDateTime.now();
 
+        // DEADLOCK PREVENTION: every UPDATE takes a row lock that is held until commit, so we always
+        // touch the account with the "smaller" account number first, whatever the direction.
+        // Two transfers can then never wait on each other in a cycle.
         if (sourceId.compareTo(destId) < 0) {
-            firstLock = lockAccount(sourceId);
-            secondLock = lockAccount(destId);
+            debit(sourceId, amount, now);
+            credit(destId, amount, now);
         } else {
-            firstLock = lockAccount(destId);
-            secondLock = lockAccount(sourceId);
+            credit(destId, amount, now);
+            debit(sourceId, amount, now);
         }
 
-        // Identify which locked account is the source and which is the destination
-        Account sourceAccount = firstLock.getAccountNumber().equals(sourceId) ? firstLock : secondLock;
-        Account destinationAccount = firstLock.getAccountNumber().equals(destId) ? firstLock : secondLock;
+        // Success audit row commits atomically with the balance changes.
+        transactionLogService.record(request, transactionRef, "SUCCESS");
+    }
 
-        try {
-            // Perform the domain logic (math)
-            sourceAccount.debit(request.amount());
-            destinationAccount.credit(request.amount());
-
-            // Save the updated states
-            accountRepository.save(sourceAccount);
-            accountRepository.save(destinationAccount);
-
-            // Write the immutable audit log
-            transactionLogService.record(request, transactionRef, "SUCCESS");
-
-            log.info("Transfer successful [Ref: {}]", transactionRef);
-            return transactionRef;
-
-        } catch (Exception e) {
-            log.error("Transfer failed [Ref: {}]: {}", transactionRef, e.getMessage());
-            // Logged in its own transaction (REQUIRES_NEW) so it survives the rollback below
-            transactionLogService.record(request, transactionRef, "FAILED");
-            throw e; // Rethrow to trigger the database rollback for the account balances
+    private void debit(String accountNumber, BigDecimal amount, LocalDateTime now) {
+        if (accountRepository.debitIfSufficient(accountNumber, amount, now) == 0) {
+            if (!accountRepository.existsByAccountNumber(accountNumber)) {
+                throw new IllegalArgumentException("Account not found: " + accountNumber);
+            }
+            throw new IllegalArgumentException("Insufficient funds");
         }
     }
-    private Account lockAccount(String accountNumber) {
-        return accountRepository.findByAccountNumberForUpdate(accountNumber)
-                .orElseThrow(() -> new IllegalArgumentException("Account not found: " + accountNumber));
+
+    private void credit(String accountNumber, BigDecimal amount, LocalDateTime now) {
+        if (accountRepository.credit(accountNumber, amount, now) == 0) {
+            throw new IllegalArgumentException("Account not found: " + accountNumber);
+        }
     }
 }
