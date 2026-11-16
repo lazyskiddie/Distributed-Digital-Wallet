@@ -13,7 +13,7 @@ import java.util.UUID;
 @RequiredArgsConstructor
 public class TransferService {
     private final AccountRepository accountRepository;
-    private final TransactionLogRepository transactionLogRepository;
+    private final TransactionLogService transactionLogService;
 
     @Transactional
     public String transferFunds(TransferRequest request) {
@@ -55,31 +55,20 @@ public class TransferService {
             accountRepository.save(destinationAccount);
 
             // Write the immutable audit log
-            saveTransactionLog(request, transactionRef, "SUCCESS");
+            transactionLogService.record(request, transactionRef, "SUCCESS");
 
             log.info("Transfer successful [Ref: {}]", transactionRef);
             return transactionRef;
 
         } catch (Exception e) {
             log.error("Transfer failed [Ref: {}]: {}", transactionRef, e.getMessage());
-            // We save the failed attempt (Requires a separate transaction in a real app, but simplified here)
-            saveTransactionLog(request, transactionRef, "FAILED");
+            // Logged in its own transaction (REQUIRES_NEW) so it survives the rollback below
+            transactionLogService.record(request, transactionRef, "FAILED");
             throw e; // Rethrow to trigger the database rollback for the account balances
         }
     }
     private Account lockAccount(String accountNumber) {
         return accountRepository.findByAccountNumberForUpdate(accountNumber)
                 .orElseThrow(() -> new IllegalArgumentException("Account not found: " + accountNumber));
-    }
-
-    private void saveTransactionLog(TransferRequest request, String ref, String status) {
-        TransactionLog logEntry = TransactionLog.builder()
-                .transactionReference(ref)
-                .sourceAccount(request.sourceAccount())
-                .destinationAccount(request.destinationAccount())
-                .amount(request.amount())
-                .status(status)
-                .build();
-        transactionLogRepository.save(logEntry);
     }
 }
