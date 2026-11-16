@@ -16,7 +16,7 @@ public class TransferController {
     private final TransferService transferService;
 
     @PostMapping
-    public ResponseEntity> initiateTransfer(@Valid @RequestBody TransferRequest request) {
+    public ResponseEntity<Map<String, String>> initiateTransfer(@Valid @RequestBody TransferRequest request) {
         // The service handles the transaction, locking, and throws exceptions if funds are insufficient
         String transactionRef = transferService.transferFunds(request);
 
