@@ -72,3 +72,120 @@
     if (text !== undefined) n.textContent = text;
     return n;
   }
+
+  // Rendering
+  function renderSelects() {
+    const keepFrom = el.from.value;
+    const keepTo = el.to.value;
+
+    for (const select of [el.from, el.to]) {
+      select.replaceChildren();
+      for (const a of accounts) {
+        const opt = node('option', '', a.ownerName || a.accountNumber);
+        opt.value = a.accountNumber;
+        select.append(opt);
+      }
+      select.disabled = accounts.length < 2;
+    }
+
+    const has = (v) => accounts.some((a) => a.accountNumber === v);
+    el.from.value = has(keepFrom) ? keepFrom : (accounts[0] ? accounts[0].accountNumber : '');
+    el.to.value = has(keepTo) && keepTo !== el.from.value
+      ? keepTo
+      : (accounts.find((a) => a.accountNumber !== el.from.value) || {}).accountNumber || '';
+  }
+
+  function renderWallets(changed = new Set()) {
+    el.wallets.replaceChildren();
+    if (!accounts.length) {
+      el.wallets.append(node('li', 'empty', 'No wallets yet.'));
+      return;
+    }
+    for (const a of accounts) {
+      const li = node('li');
+      const btn = node('button', 'wallet' + (changed.has(a.accountNumber) ? ' changed' : ''));
+      btn.type = 'button';
+      btn.setAttribute('aria-pressed', String(a.accountNumber === el.from.value));
+      const left = node('span');
+      left.append(node('span', 'who', a.ownerName || a.accountNumber), node('span', 'num', a.accountNumber));
+      btn.append(left, node('span', 'bal', money(a.balance)));
+      btn.addEventListener('click', () => selectSender(a.accountNumber));
+      li.append(btn);
+      el.wallets.append(li);
+    }
+  }
+
+  function renderActivity() {
+    el.activity.replaceChildren();
+    if (!transactions.length) {
+      el.activity.append(node('li', 'empty', 'No transfers yet. Your first one will show up here.'));
+      return;
+    }
+    for (const t of transactions) {
+      const ok = t.status === 'SUCCESS';
+      const li = node('li');
+      const left = node('span');
+      left.append(
+        node('span', 'what', `${nameOf(t.sourceAccount)} to ${nameOf(t.destinationAccount)}`),
+        node('span', 'when', t.timestamp ? tf.format(toDate(t.timestamp)) : '')
+      );
+      const right = node('span', 'right');
+      right.append(node('span', 'amt', money(t.amount)), node('span', 'state ' + (ok ? 'ok' : 'bad'), ok ? 'Sent' : 'Declined'));
+      li.append(left, right);
+      el.activity.append(li);
+    }
+  }
+
+  function showNotice(message) {
+    el.wallets.replaceChildren(node('li', 'notice', message));
+  }
+
+  // Form state
+  function selectSender(number) {
+    el.from.value = number;
+    if (el.to.value === number) {
+      const other = accounts.find((a) => a.accountNumber !== number);
+      el.to.value = other ? other.accountNumber : '';
+    }
+    clearFeedback();
+    refreshView();
+  }
+
+  function clearFeedback() {
+    el.error.hidden = true;
+    el.receipt.hidden = true;
+  }
+
+  function evaluate() {
+    const text = el.amount.value;
+    if (accounts.length < 2) return { ok: false, message: 'You need at least two wallets to send money.' };
+    if (!text.trim()) return { ok: false, message: 'Enter an amount to see the new balances.' };
+
+    const amt = parseAmount(text);
+    if (amt === null) return { ok: false, message: 'Use a number with up to two decimals, like 250 or 250.50.' };
+    if (amt === 0) return { ok: false, message: 'The amount must be more than zero.' };
+    if (el.from.value === el.to.value) return { ok: false, message: 'Choose two different wallets.' };
+
+    const src = accounts.find((a) => a.accountNumber === el.from.value);
+    const dst = accounts.find((a) => a.accountNumber === el.to.value);
+    if (!src || !dst) return { ok: false, message: 'Choose a sender and a recipient.' };
+
+    const srcCents = cents(src.balance);
+    if (amt > srcCents) {
+      return { ok: false, message: `${nameOf(src.accountNumber)} has ${money(src.balance)}, which is not enough for this transfer.` };
+    }
+    return {
+      ok: true, amt, src, dst,
+      message: `After this: ${nameOf(src.accountNumber)} ${money((srcCents - amt) / 100)}, ${nameOf(dst.accountNumber)} ${money((cents(dst.balance) + amt) / 100)}.`,
+    };
+  }
+
+  function refreshView() {
+    const state = evaluate();
+    el.preview.textContent = state.message;
+    el.btn.disabled = sending || !state.ok;
+    for (const b of el.wallets.querySelectorAll('.wallet')) {
+      const num = b.querySelector('.num');
+      b.setAttribute('aria-pressed', String(num && num.textContent === el.from.value));
+    }
+  }
