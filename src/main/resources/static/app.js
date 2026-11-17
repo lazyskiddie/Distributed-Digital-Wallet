@@ -189,3 +189,87 @@
       b.setAttribute('aria-pressed', String(num && num.textContent === el.from.value));
     }
   }
+
+  // Data
+  async function load({ flash = false } = {}) {
+    const before = new Map(accounts.map((a) => [a.accountNumber, cents(a.balance)]));
+    try {
+      [accounts, transactions] = await Promise.all([api('/accounts'), api('/transactions')]);
+    } catch (e) {
+      if (!accounts.length) showNotice(e.message);
+      return;
+    }
+    const changed = new Set();
+    if (flash) {
+      for (const a of accounts) {
+        if (before.has(a.accountNumber) && before.get(a.accountNumber) !== cents(a.balance)) changed.add(a.accountNumber);
+      }
+    }
+    renderSelects();
+    renderWallets(changed);
+    renderActivity();
+    refreshView();
+  }
+
+  // Events
+  el.amount.addEventListener('input', () => {
+    const cleaned = el.amount.value.replace(/[^\d.,]/g, '');
+    if (cleaned !== el.amount.value) el.amount.value = cleaned;
+    clearFeedback();
+    refreshView();
+  });
+
+  for (const select of [el.from, el.to]) {
+    select.addEventListener('change', () => { clearFeedback(); refreshView(); });
+  }
+
+  el.swap.addEventListener('click', () => {
+    const f = el.from.value;
+    el.from.value = el.to.value;
+    el.to.value = f;
+    clearFeedback();
+    refreshView();
+  });
+
+  el.form.addEventListener('submit', async (event) => {
+    event.preventDefault();
+    const state = evaluate();
+    if (!state.ok || sending) return;
+
+    sending = true;
+    clearFeedback();
+    el.btn.disabled = true;
+    el.btn.textContent = 'Sending…';
+
+    try {
+      const result = await api('/transfers', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          sourceAccount: state.src.accountNumber,
+          destinationAccount: state.dst.accountNumber,
+          amount: Number((state.amt / 100).toFixed(2)),
+        }),
+      });
+
+      el.receipt.replaceChildren(
+        node('strong', '', `Sent ${money(state.amt / 100)} to ${nameOf(state.dst.accountNumber)}`),
+        node('span', '', `Reference ${result.transactionReference}`)
+      );
+      el.receipt.hidden = false;
+      el.amount.value = '';
+      await load({ flash: true });
+    } catch (e) {
+      el.error.textContent = e.message;
+      el.error.hidden = false;
+      await load({ flash: true });
+    } finally {
+      sending = false;
+      el.btn.textContent = 'Send money';
+      refreshView();
+    }
+  });
+
+  load();
+  setInterval(() => { if (!document.hidden && !sending) load({ flash: true }); }, REFRESH_MS);
+})();
