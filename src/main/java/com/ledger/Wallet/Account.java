@@ -23,6 +23,9 @@ public class Account {
     @Column(nullable = false, unique = true, updatable = false)
     private String accountNumber;
 
+    // Display name shown in the UI (optional)
+    private String ownerName;
+
     // The most critical field. It must never drop below zero!
     @Column(nullable = false, precision = 19, scale = 4)
     private BigDecimal balance;
