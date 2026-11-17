@@ -5,6 +5,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageConversionException;
 import org.springframework.validation.FieldError;
+import org.springframework.web.ErrorResponse;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
@@ -48,6 +49,13 @@ public class GlobalExceptionHandler {
     // Catch-all (never leak stack traces to the client)
     @ExceptionHandler(Exception.class)
     public ResponseEntity<Map<String, Object>> handleGenericException(Exception ex) {
+        // Framework errors that already carry their own HTTP status (404 for an unknown URL,
+        // 405 for a wrong method, ...) keep that status instead of becoming a 500.
+        if (ex instanceof ErrorResponse errorResponse) {
+            HttpStatus status = HttpStatus.resolve(errorResponse.getStatusCode().value());
+            return error(status != null ? status : HttpStatus.INTERNAL_SERVER_ERROR,
+                    status != null ? status.getReasonPhrase() : "Request failed.");
+        }
         // Safety net: whatever the JSON library throws for a bad body, it is the client's fault.
         for (Throwable t = ex; t != null; t = t.getCause()) {
             if (t.getClass().getName().contains("jackson")) {
