@@ -1,0 +1,70 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Wallet: send money</title>
+    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='9' fill='%232E3FD6'/%3E%3Cpath d='M9 16h12m-5-5 5 5-5 5' stroke='white' stroke-width='3' fill='none' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700&family=Figtree:wght@400;500;600&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+<header class="top">
+    <span class="brand">Wallet</span>
+</header>
+
+<main class="layout">
+    <section class="send" aria-labelledby="send-title">
+        <h1 id="send-title">Send money</h1>
+
+        <form id="send-form" novalidate>
+            <div class="amount">
+                <label for="amount">Amount</label>
+                <div class="amount-row">
+                    <span class="currency" id="currency" aria-hidden="true">₹</span>
+                    <input id="amount" name="amount" type="text" inputmode="decimal" autocomplete="off"
+                           placeholder="0.00" aria-describedby="preview">
+                </div>
+            </div>
+
+            <div class="route">
+                <div class="field">
+                    <label for="from">From</label>
+                    <select id="from" name="from" disabled></select>
+                </div>
+                <button type="button" id="swap" class="swap" aria-label="Swap sender and recipient">
+                    <svg width="20" height="20" viewBox="0 0 20 20" aria-hidden="true"><path d="M3 7h12m-3-3 3 3-3 3M17 13H5m3-3-3 3 3 3" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                </button>
+                <div class="field">
+                    <label for="to">To</label>
+                    <select id="to" name="to" disabled></select>
+                </div>
+            </div>
+
+            <p id="preview" class="preview" aria-live="polite"></p>
+            <p id="form-error" class="form-error" role="alert" hidden></p>
+            <div id="receipt" class="receipt" role="status" hidden></div>
+
+            <button type="submit" id="send-btn" class="send-btn" disabled>Send money</button>
+        </form>
+    </section>
+
+    <div class="side">
+        <section class="block" aria-labelledby="wallets-title">
+            <h2 id="wallets-title">Wallets</h2>
+            <p class="hint">Select a wallet to send from it.</p>
+            <ul id="wallet-list" class="wallet-list"></ul>
+        </section>
+
+        <section class="block" aria-labelledby="activity-title">
+            <h2 id="activity-title">Recent activity</h2>
+            <ul id="activity-list" class="activity-list"></ul>
+        </section>
+    </div>
+</main>
+
+<script src="app.js"></script>
+</body>
+</html>
