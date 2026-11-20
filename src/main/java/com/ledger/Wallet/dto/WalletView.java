@@ -1,4 +1,6 @@
 package com.ledger.Wallet.dto;
 
-public record WalletView() {
-}
+import java.math.BigDecimal;
+
+public record WalletView(String accountNumber, BigDecimal balance) {}
+
