@@ -4,14 +4,12 @@ import org.springframework.stereotype.Component;
 
 import java.util.concurrent.locks.ReentrantLock;
 
-/**
-  In-process "gate" in front of the database. Threads queue here (holding NO database connection)
-  instead of queueing on row locks inside the database. The atomic conditional UPDATEs remain the
-  actual correctness guarantee (and protect across several app instances); this just removes
-  in-JVM lock contention, which keeps connections free and avoids long row-lock waits.
-  Striped: a fixed number of locks, chosen by account-number hash. Locks are always taken in
-  ascending stripe order, so two threads can never wait on each other in a cycle.
- */
+ // In-process "gate" in front of the database. Threads queue here (holding NO database connection)
+ // instead of queueing on row locks inside the database. The atomic conditional UPDATEs remain the
+ // actual correctness guarantee (and protect across several app instances); this just removes
+ // in-JVM lock contention, which keeps connections free and avoids long row-lock waits.
+ // Striped: a fixed number of locks, chosen by account-number hash. Locks are always taken in
+ // ascending stripe order, so two threads can never wait on each other in a cycle.
 @Component
 public class AccountLockManager {
 
@@ -24,7 +22,7 @@ public class AccountLockManager {
         }
     }
 
-    // Locks both accounts (in a deadlock-free order). Use in try-with-resources.
+    // Locks both accounts (in a deadlock-free order). Use in try-with-resources
     public Held acquire(String accountA, String accountB) {
         int a = stripe(accountA);
         int b = stripe(accountB);
