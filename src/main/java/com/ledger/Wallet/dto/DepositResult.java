@@ -1,4 +1,6 @@
 package com.ledger.Wallet.dto;
 
-public record DepositResult() {
-}
+import java.math.BigDecimal;
+
+public record DepositResult(String transactionReference, BigDecimal amount, BigDecimal balance) {}
+
