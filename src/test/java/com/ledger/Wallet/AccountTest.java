@@ -1,5 +1,6 @@
 package com.ledger.Wallet;
 
+import com.ledger.Wallet.Model.Account;
 import org.junit.jupiter.api.Test;
 
 import java.math.BigDecimal;

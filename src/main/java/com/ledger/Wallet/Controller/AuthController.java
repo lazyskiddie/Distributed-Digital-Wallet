@@ -1,5 +1,10 @@
-package com.ledger.Wallet;
+package com.ledger.Wallet.Controller;
 
+import com.ledger.Wallet.Model.AppUser;
+import com.ledger.Wallet.Model.SessionCookies;
+import com.ledger.Wallet.Service.AuthService;
+import com.ledger.Wallet.Service.SessionService;
+import com.ledger.Wallet.Service.WalletService;
 import com.ledger.Wallet.dto.LoginRequest;
 import com.ledger.Wallet.dto.ProfileView;
 import com.ledger.Wallet.dto.RegisterRequest;

@@ -1,4 +1,4 @@
-package com.ledger.Wallet;
+package com.ledger.Wallet.Model;
 
 import org.springframework.stereotype.Component;
 

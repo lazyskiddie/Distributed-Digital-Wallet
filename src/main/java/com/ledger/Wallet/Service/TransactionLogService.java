@@ -1,5 +1,7 @@
-package com.ledger.Wallet;
+package com.ledger.Wallet.Service;
 
+import com.ledger.Wallet.Repository.TransactionLogRepository;
+import com.ledger.Wallet.Model.TransactionLog;
 import com.ledger.Wallet.dto.TransferRequest;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;

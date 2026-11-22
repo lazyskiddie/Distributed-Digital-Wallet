@@ -1,5 +1,7 @@
-package com.ledger.Wallet;
+package com.ledger.Wallet.Service;
 
+import com.ledger.Wallet.Model.AccountLockManager;
+import com.ledger.Wallet.Repository.AccountRepository;
 import com.ledger.Wallet.dto.TransferRequest;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;

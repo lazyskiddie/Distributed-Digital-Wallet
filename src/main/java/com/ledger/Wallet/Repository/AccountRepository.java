@@ -1,5 +1,6 @@
-package com.ledger.Wallet;
+package com.ledger.Wallet.Repository;
 
+import com.ledger.Wallet.Model.Account;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;

@@ -1,5 +1,6 @@
-package com.ledger.Wallet;
+package com.ledger.Wallet.Repository;
 
+import com.ledger.Wallet.Model.SessionToken;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.stereotype.Repository;
 

@@ -1,5 +1,6 @@
-package com.ledger.Wallet;
+package com.ledger.Wallet.Configuration;
 
+import com.ledger.Wallet.Model.AuthInterceptor;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.web.servlet.config.annotation.InterceptorRegistry;

@@ -1,5 +1,6 @@
-package com.ledger.Wallet;
+package com.ledger.Wallet.Model;
 
+import com.ledger.Wallet.Exception.ApiException;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Component;
 

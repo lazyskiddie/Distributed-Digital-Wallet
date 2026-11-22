@@ -1,5 +1,12 @@
-package com.ledger.Wallet;
+package com.ledger.Wallet.Service;
 
+import com.ledger.Wallet.Model.Account;
+import com.ledger.Wallet.Exception.ApiException;
+import com.ledger.Wallet.Model.AppUser;
+import com.ledger.Wallet.Repository.AccountRepository;
+import com.ledger.Wallet.Repository.TransactionLogRepository;
+import com.ledger.Wallet.Repository.UserRepository;
+import com.ledger.Wallet.Model.TransactionLog;
 import com.ledger.Wallet.dto.ActivityView;
 import com.ledger.Wallet.dto.DepositResult;
 import com.ledger.Wallet.dto.ProfileView;

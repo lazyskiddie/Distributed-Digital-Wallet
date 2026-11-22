@@ -1,5 +1,9 @@
-package com.ledger.Wallet;
+package com.ledger.Wallet.Service;
 
+import com.ledger.Wallet.Model.AppUser;
+import com.ledger.Wallet.Repository.SessionRepository;
+import com.ledger.Wallet.Repository.UserRepository;
+import com.ledger.Wallet.Model.SessionToken;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
