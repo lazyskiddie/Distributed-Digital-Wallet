@@ -18,6 +18,12 @@ import java.util.Map;
 @RestControllerAdvice
 public class GlobalExceptionHandler {
 
+    // Errors raised on purpose with their own status and a user-safe message (401, 403, 409, ...)
+    @ExceptionHandler(ApiException.class)
+    public ResponseEntity<Map<String, Object>> handleApiException(ApiException ex) {
+        return error(ex.getStatus(), ex.getMessage());
+    }
+
     // Business-logic errors (e.g. "Insufficient funds", "Account not found")
     @ExceptionHandler(IllegalArgumentException.class)
     public ResponseEntity<Map<String, Object>> handleIllegalArgumentException(IllegalArgumentException ex) {
