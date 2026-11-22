@@ -1,0 +1,132 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Wallet: send money</title>
+    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='9' fill='%232E3FD6'/%3E%3Cpath d='M9 16h12m-5-5 5 5-5 5' stroke='white' stroke-width='3' fill='none' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700&family=Figtree:wght@400;500;600&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+<header class="top">
+    <span class="brand">Wallet</span>
+    <div class="userbar" id="userbar" hidden>
+        <span id="user-name"></span>
+        <button type="button" id="logout" class="link-btn">Sign out</button>
+    </div>
+</header>
+
+<!--  Signed out: create account / sign in -->
+<main class="layout" id="auth-view" hidden>
+    <section class="send" aria-labelledby="auth-title">
+        <h1 id="auth-title">Create your wallet</h1>
+
+        <div class="mode" role="group" aria-label="Create an account or sign in">
+            <button type="button" id="mode-register" aria-pressed="true">Create account</button>
+            <button type="button" id="mode-login" aria-pressed="false">Sign in</button>
+        </div>
+
+        <form id="auth-form" novalidate>
+            <div class="field" id="name-field">
+                <label for="full-name">Full name</label>
+                <input id="full-name" type="text" autocomplete="name" maxlength="80">
+            </div>
+            <div class="field">
+                <label for="email">Email</label>
+                <input id="email" type="email" autocomplete="email" inputmode="email" maxlength="254">
+            </div>
+            <div class="field">
+                <label for="password">Password</label>
+                <div class="pw">
+                    <input id="password" type="password" autocomplete="new-password" maxlength="128">
+                    <button type="button" id="toggle-pw" class="pw-toggle" aria-pressed="false">Show</button>
+                </div>
+                <p class="field-hint" id="pw-hint">At least 8 characters.</p>
+            </div>
+            <p id="auth-error" class="form-error" role="alert" hidden></p>
+            <button type="submit" id="auth-btn" class="send-btn">Create wallet</button>
+        </form>
+    </section>
+
+    <div class="side">
+        <section class="block" aria-labelledby="how-title">
+            <h2 id="how-title">How it works</h2>
+            <ol class="steps">
+                <li><strong>Create an account.</strong> You get your own wallet and wallet number straight away.</li>
+                <li><strong>Add money.</strong> This is a demo top-up, so no real money moves.</li>
+                <li><strong>Send to anyone</strong> with a wallet, using their email or wallet number. You see their name before you confirm.</li>
+            </ol>
+        </section>
+    </div>
+</main>
+
+<!-- Signed in -->
+<main class="layout" id="app-view" hidden>
+    <section class="send" aria-labelledby="send-title">
+        <h1 id="send-title">Send money</h1>
+
+        <form id="send-form" novalidate>
+            <div class="field">
+                <label for="recipient">To (email or wallet number)</label>
+                <input id="recipient" type="text" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="friend@example.com">
+                <p id="recipient-note" class="recipient-note" aria-live="polite"></p>
+            </div>
+
+            <div class="amount">
+                <label for="amount">Amount</label>
+                <div class="amount-row">
+                    <span class="currency" id="currency" aria-hidden="true">₹</span>
+                    <input id="amount" name="amount" type="text" inputmode="decimal" autocomplete="off"
+                           placeholder="0.00" aria-describedby="preview">
+                </div>
+            </div>
+
+            <p id="preview" class="preview" aria-live="polite"></p>
+            <p id="form-error" class="form-error" role="alert" hidden></p>
+            <div id="receipt" class="receipt" role="status" hidden></div>
+
+            <button type="submit" id="send-btn" class="send-btn" disabled>Send money</button>
+        </form>
+    </section>
+
+    <div class="side">
+        <section class="block" aria-labelledby="wallet-title">
+            <h2 id="wallet-title">Your wallet</h2>
+            <p class="balance" id="balance">₹0.00</p>
+            <div class="wallet-no">
+                <span>Wallet number <strong id="wallet-number"></strong></span>
+                <button type="button" id="copy" class="link-btn">Copy</button>
+            </div>
+        </section>
+
+        <section class="block" aria-labelledby="add-title">
+            <h2 id="add-title">Add money</h2>
+            <p class="hint">Demo top-up. No real money moves. Up to ₹1,00,000 at a time.</p>
+            <form id="add-form" class="add-form" novalidate>
+                <div class="add-row">
+                    <label class="sr-only" for="add-amount">Amount to add</label>
+                    <input id="add-amount" type="text" inputmode="decimal" autocomplete="off" placeholder="Amount">
+                    <button type="submit" id="add-btn" class="btn">Add money</button>
+                </div>
+                <div class="chips" aria-label="Quick amounts">
+                    <button type="button" class="chip" data-amount="500">₹500</button>
+                    <button type="button" class="chip" data-amount="1000">₹1,000</button>
+                    <button type="button" class="chip" data-amount="5000">₹5,000</button>
+                </div>
+                <p id="add-message" class="add-message" role="status" aria-live="polite"></p>
+            </form>
+        </section>
+
+        <section class="block" aria-labelledby="activity-title">
+            <h2 id="activity-title">Recent activity</h2>
+            <ul id="activity-list" class="activity-list"></ul>
+        </section>
+    </div>
+</main>
+
+<script src="app.js"></script>
+</body>
+</html>
