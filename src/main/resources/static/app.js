@@ -442,6 +442,29 @@
     }
   });
 
+  /* ---------- Left navigation: one section at a time ---------- */
+  const VIEWS = ['wallet', 'send', 'add', 'activity'];
+
+  function viewFromHash() {
+    const name = location.hash.replace('#', '');
+    return VIEWS.includes(name) ? name : 'wallet';
+  }
+
+  function showView(name, moveFocus) {
+    for (const s of document.querySelectorAll('[data-view]')) s.hidden = s.dataset.view !== name;
+    for (const a of document.querySelectorAll('[data-nav]')) {
+      if (a.dataset.nav === name) a.setAttribute('aria-current', 'page');
+      else a.removeAttribute('aria-current');
+    }
+    if (moveFocus) {
+      const heading = document.querySelector(`[data-view="${name}"] h1`);
+      if (heading) heading.focus();
+      window.scrollTo(0, 0);
+    }
+  }
+
+  window.addEventListener('hashchange', () => { if (state.user) showView(viewFromHash(), true); });
+
   // Start
   async function start() {
     setMode('register');
