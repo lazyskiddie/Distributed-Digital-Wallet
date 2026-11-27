@@ -111,6 +111,7 @@
     state.user = null;
     state.history = [];
     clearInterval(refreshTimer);
+    if (location.hash) history.replaceState(null, '', location.pathname + location.search);
     el.userbar.hidden = true;
     el.appView.hidden = true;
     el.authView.hidden = false;
@@ -130,6 +131,7 @@
     hideAuthError();
     resetSendForm();
     renderWallet(false);
+    showView(viewFromHash(), false);
     loadHistory();
     clearInterval(refreshTimer);
     refreshTimer = setInterval(() => { if (!document.hidden && !state.sending && !state.adding) refresh(); }, REFRESH_MS);
