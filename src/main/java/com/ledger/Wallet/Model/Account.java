@@ -1,4 +1,4 @@
-package com.ledger.Wallet;
+package com.ledger.Wallet.Model;
 
 import jakarta.persistence.*;
 import lombok.*;
@@ -22,6 +22,13 @@ public class Account {
 
     @Column(nullable = false, unique = true, updatable = false)
     private String accountNumber;
+
+    // Display name shown in the UI (optional)
+    private String ownerName;
+
+    // The user who owns this wallet (null for legacy / test accounts). One wallet per user.
+    @Column(unique = true)
+    private Long userId;
 
     // The most critical field. It must never drop below zero!
     @Column(nullable = false, precision = 19, scale = 4)
